@@ -49,6 +49,8 @@ start_link(Name, Opts) ->
 	gen_server:start_link({local, Name}, ?MODULE, [Name, Opts], []).
 
 init([Name, Opts]) ->
+   {file, File} = lists:keyfind(file, 1, Opts),
+   ok      = filelib:ensure_dir(File),
 	{ok, _} = dets:open_file(Name, Opts),
 	{ok, 
 		#srv{
