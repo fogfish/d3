@@ -1,0 +1,19 @@
+{application, d3,
+   [
+      {description, "distributed direct dets interface"},
+      {vsn,         "0.0.0"},
+      {modules,     [
+         d3
+        ,d3_app
+        ,d3_sup
+        ,d3_proc
+      ]},
+      {registered,  []},
+      {applications,[
+         kernel,
+         stdlib
+      ]},
+      {mod, {d3_app, []}},      
+      {env, []}
+   ]
+}.  

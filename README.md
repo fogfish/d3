@@ -1,4 +1,4 @@
-* Direct Distributed DETS interface
+# Direct Distributed DETS interface
 
 The application implements dets i/o interface so that cluster node
 can perform dets i/o using Erlang distribution without any needs to use
