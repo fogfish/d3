@@ -57,16 +57,12 @@ start_link(Name, Opts) ->
 %%
 %% creates dets owner process and opens table. The process
 %% is attached to application supervisor.
-%% returns pid of dets process
+%% returns pid of dets container process
+%% use d3:pid(Name) to get dets i/o process
 -spec(open_file/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
 
 open_file(Name, Opts) ->
-   case supervisor:start_child(d3_sup, [Name, Opts]) of
-      {ok, _} ->
-         {ok, d3:pid(Name)};
-      Error   ->
-         Error
-   end.
+   supervisor:start_child(d3_sup, [Name, Opts]).
 
 %%
 %% closes dets tables and terminates owner process
