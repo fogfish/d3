@@ -26,7 +26,7 @@
 -author('Dmitry Kolesnikov <dmkolesnikov@gmail.com>').
 
 -export([
-	start_link/2
+   start_link/2
   ,open_file/2
   ,close/1
   ,pid/1
@@ -43,19 +43,16 @@
   ,update_counter/3
 ]).
 
+-define(NET_TIMEOUT,  30000).
 
 %%
 %% creates dets owner process and opens table.
-%% returns pid of dets process
+%% returns pid of dets container 
+%% use d3:pid(Name) to get dets i/o process
 -spec(start_link/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
 
 start_link(Name, Opts) ->
-	case d3_proc:start_link(Name, Opts) of
-		{ok, _} ->
-			{ok, d3:pid(Name)};
-		Error   ->
-			Error
-	end.
+   d3_proc:start_link(Name, Opts).
 
 %%
 %% creates dets owner process and opens table. The process
@@ -64,12 +61,12 @@ start_link(Name, Opts) ->
 -spec(open_file/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
 
 open_file(Name, Opts) ->
-	case supervisor:start_child(d3_sup, [Name, Opts]) of
-		{ok, _} ->
-			{ok, d3:pid(Name)};
-		Error   ->
-			Error
-	end.
+   case supervisor:start_child(d3_sup, [Name, Opts]) of
+      {ok, _} ->
+         {ok, d3:pid(Name)};
+      Error   ->
+         Error
+   end.
 
 %%
 %% closes dets tables and terminates owner process
@@ -77,18 +74,18 @@ open_file(Name, Opts) ->
 
 close(Name)
  when is_atom(Name) ->
- 	gen_server:call(Name, close).
+   gen_server:call(Name, close).
 
 
 %%
 %% retrun pid of dets process
 pid(Name) ->
-	case dets_server:get_pid(Name) of
-		Pid when is_pid(Pid) ->
-			Pid;
-		_ ->
-	   	exit(badarg)
-    end.
+   case dets_server:get_pid(Name) of
+      Pid when is_pid(Pid) ->
+         Pid;
+      _ ->
+         exit(badarg)
+   end.
 
 %%%----------------------------------------------------------------------------   
 %%%
@@ -137,7 +134,7 @@ insert_new(Pid, Obj) ->
 -spec(info/2 :: (pid(), atom()) -> list()).
 
 info(Pid) ->
-	request(Pid, info).
+   request(Pid, info).
 
 info(Pid, Tag) ->
    request(Pid, {info, Tag}).
@@ -182,12 +179,21 @@ update_counter(Pid, Key, C) ->
 %% issue direct dets request
 request(Pid, Req)
  when is_pid(Pid) ->
-	Tx = erlang:monitor(process, Pid),
-	%% @see dets.hrl for request format
-	catch erlang:send(Pid, {'$dets_call', self(), Req}, [noconnect]),
+   case erlang:node(Pid) of
+   Node when Node =:= erlang:node() ->
+      do_request(Pid, Req);
+   _ ->
+      do_request(Pid, Req, ?NET_TIMEOUT)
+  end.
+
+
+do_request(Pid, Req) ->
+   Tx = erlang:monitor(process, Pid),
+   %% @see dets.hrl for request format
+   catch erlang:send(Pid, {'$dets_call', self(), Req}, [noconnect]),
    receive 
-   	{Pid, Reply} ->
-   	   erlang:demonitor(Tx, [flush]),
+      {Pid, Reply} ->
+         erlang:demonitor(Tx, [flush]),
          Reply;
       {'DOWN', Tx, _, _, noconnection} ->
          exit({nodedown, erlang:node(Pid)});
@@ -195,20 +201,20 @@ request(Pid, Req)
          exit(Reason)
    end.
 
-% request(Pid, Req, Timeout) ->
-% 	Tx = erlang:monitor(process, Pid),
-% 	%% @see dets.hrl for request format
-% 	catch erlang:send(Pid, {'$dets_call', Pid, Req}, [noconnect]),
-%    receive 
-%    	{Pid, Reply} ->
-%    	   erlang:demonitor(Tx, [flush]),
-%          Reply;
-%       {'DOWN', Tx, _, _, noconnection} ->
-%          exit({nodedown, erlang:node(Pid)});
-%       {'DOWN', Tx, _, _, Reason} ->
-%          exit(Reason)
-%    after Timeout ->
-%       erlang:demonitor(Tx, [flush]),
-%       exit(timeout)
-%    end.
+do_request(Pid, Req, Timeout) ->
+   Tx = erlang:monitor(process, Pid),
+   %% @see dets.hrl for request format
+   catch erlang:send(Pid, {'$dets_call', self(), Req}, [noconnect]),
+   receive 
+      {Pid, Reply} ->
+         erlang:demonitor(Tx, [flush]),
+         Reply;
+      {'DOWN', Tx, _, _, noconnection} ->
+         exit({nodedown, erlang:node(Pid)});
+      {'DOWN', Tx, _, _, Reason} ->
+         exit(Reason)
+   after Timeout ->
+      erlang:demonitor(Tx, [flush]),
+      exit(timeout)
+   end.
 
